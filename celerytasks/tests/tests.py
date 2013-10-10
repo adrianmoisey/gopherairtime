@@ -1,13 +1,11 @@
 from django.test import TestCase
 from django.test.utils import override_settings
-from django.core.urlresolvers import reverse
 from django.conf import settings
-import json
 import random
 import requests
 from recharge.models import Recharge, RechargeError
 from celerytasks.models import StoreToken
-from celerytasks.tasks import run_queries, hotsocket_login, get_recharge
+from celerytasks.tasks import hotsocket_login, get_recharge
 from gopherairtime.custom_exceptions import (TokenInvalidError, TokenExpireError,
                                              MSISDNNonNumericError, MSISDMalFormedError,
                                              BadProductCodeError, BadNetworkCodeError,
