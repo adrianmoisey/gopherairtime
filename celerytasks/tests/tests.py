@@ -4,6 +4,7 @@ from django.core.urlresolvers import reverse
 from django.conf import settings
 import json
 import random
+import requests
 from recharge.models import Recharge, RechargeError
 from celerytasks.models import StoreToken
 from celerytasks.tasks import run_queries, hotsocket_login, get_recharge
@@ -12,29 +13,95 @@ from gopherairtime.custom_exceptions import (TokenInvalidError, TokenExpireError
                                              BadProductCodeError, BadNetworkCodeError,
                                              BadCombinationError, DuplicateReferenceError,
                                              NonNumericReferenceError)
+from mock import patch, Mock
+
+
+code = settings.HOTSOCKET_CODES
+
+def my_side_effect(*args, **kwargs):
+    m = Mock()
+    NET_CODE = ["VOD", "MTN", "CELLC", "8TA"]
+    PROD_CODE = ["AIRTIME", "DATA", "SMS"]
+
+    if "data" in kwargs:
+        if ("username" and "password") in kwargs["data"]:
+            m.json.return_value = {"response": {"status": "0000", "token": "123456789"}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and  (isinstance(kwargs["data"]["token"], str)):
+            m.json.return_value = {"response": {"status": code["TOKEN_INVALID"]["status"],
+                                    "message": code["TOKEN_INVALID"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (isinstance(kwargs["data"]["reference"], str)):
+            m.json.return_value = {"response": {"status": code["REF_NON_NUM"]["status"],
+                                    "message": code["REF_NON_NUM"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (kwargs["data"]["reference"] == 10):
+            m.json.return_value = {"response": {"status": code["REF_DUPLICATE"]["status"],
+                                    "message": code["REF_DUPLICATE"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (isinstance(kwargs["data"]["recipient_msisdn"], str)):
+            m.json.return_value = {"response": {"status": code["MSISDN_NON_NUM"]["status"],
+                                    "message": code["MSISDN_NON_NUM"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (kwargs["data"]["network_code"] not in NET_CODE):
+            m.json.return_value = {"response": {"status": code["NETWORK_CODE_BAD"]["status"],
+                                    "message": code["NETWORK_CODE_BAD"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (kwargs["data"]["product_code"] not in PROD_CODE):
+            m.json.return_value = {"response": {"status": code["PRODUCT_CODE_BAD"]["status"],
+                                    "message": code["PRODUCT_CODE_BAD"]["message"]}}
+            return m
+
+        elif ("token" and "recipient_msisdn") in kwargs["data"] and (len(str(kwargs["data"]["recipient_msisdn"])) < len("27721231234")):
+            m.json.return_value = {"response": {"status": code["MSISDN_MALFORMED"]["status"],
+                                    "message": code["MSISDN_MALFORMED"]["message"]}}
+            return m
+
+        elif (("recipient_msisdn" and "product_code" in kwargs["data"]) and
+              (isinstance(kwargs["data"]["reference"], long)) and
+              (isinstance(kwargs["data"]["recipient_msisdn"], long))):
+            m.json.return_value = {"response": {"status": code["SUCCESS"]["status"],
+                                    "message": code["SUCCESS"]["message"],
+                                   "hotsocket_ref": "12345"}}
+            return m
+
+
 
 
 class TestRecharge(TestCase):
-    fixtures = ["test_recharge.json"]
+    fixtures = ["test_auth_users.json", "test_users.json", "test_recharge.json"]
 
     @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS = True,
                        CELERY_ALWAYS_EAGER = True,
                        BROKER_BACKEND = 'memory',)
 
+    def setUp(self):
+        patcher = patch('requests.post', Mock(side_effect=my_side_effect))
+        self.MockClass = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_requests_post_is_patched(self):
+        self.assertEqual(requests.post, self.MockClass)
+
     def test_data_loaded(self):
         query = Recharge.objects.all()
         self.assertEqual(len(query), 2)
 
-    def test_query_function(self):
-        run_queries.delay()
-        query = Recharge.objects.all()
-        [self.assertEqual(obj.status, settings.HS_RECHARGE_STATUS_CODES["PENDING"]["code"]) for obj in query]
-        [self.assertIsNotNone(obj.reference) for obj in query]
-        [self.assertIsNotNone(obj.recharge_system_ref) for obj in query]
+#     def test_query_function(self):
+#         run_queries.delay()
+#         query = Recharge.objects.all()
+#         [self.assertEqual(obj.status, settings.HS_RECHARGE_STATUS_CODES["PENDING"]["code"]) for obj in query]
+#         [self.assertIsNotNone(obj.reference) for obj in query]
+#         [self.assertIsNotNone(obj.recharge_system_ref) for obj in query]
 
 
     def test_recharge_success(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = random.randint(0, 999999999999999)
@@ -56,7 +123,6 @@ class TestRecharge(TestCase):
         self.assertEqual(settings.HS_RECHARGE_STATUS_CODES["PENDING"]["code"], query.status)
 
     def test_invalid_token(self):
-        code = settings.HOTSOCKET_CODES
         reference = random.randint(0, 999999999999999)
         query = Recharge.objects.get(msisdn=27821231232)
 
@@ -76,26 +142,8 @@ class TestRecharge(TestCase):
         self.assertEqual(settings.HS_RECHARGE_STATUS_CODES["PENDING"]["code"], query.status)
 
     def test_duplicate_reference(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
-        reference = random.randint(0, 999999999999999)
-        query_1 = Recharge.objects.get(msisdn=27821231232)
-
-        self.assertIsNone(query_1.recharge_system_ref)
-        data = {"username": settings.HOTSOCKET_USERNAME,
-                    "token": store_token.token,
-                    "recipient_msisdn": query_1.msisdn,
-                    "product_code": query_1.product_code,
-                    "denomination": query_1.denomination,  # In cents
-                    "network_code": "VOD",
-                    "reference": reference,
-                    "as_json": True}
-        get_recharge.delay(data, query_1.id)
-        query_1 = Recharge.objects.get(msisdn=27821231232)
-        self.assertIsNotNone(query_1.reference)
-        self.assertIsNotNone(query_1.recharge_system_ref)
-        self.assertEqual(settings.HS_RECHARGE_STATUS_CODES["PENDING"]["code"], query_1.status)
 
         query_3 = Recharge.objects.get(msisdn=27821231231)
 
@@ -107,7 +155,7 @@ class TestRecharge(TestCase):
                 "product_code": query_3.product_code,
                 "denomination": query_3.denomination,  # In cents
                 "network_code": "VOD",
-                "reference": reference,
+                "reference": 10,
                 "as_json": True}
         get_recharge.delay(data, query_3.id)
         query = Recharge.objects.get(msisdn=27821231231)
@@ -118,7 +166,6 @@ class TestRecharge(TestCase):
         self.assertIsNotNone(error.last_attempt_at)
 
     def test_non_numeric_reference(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = "a"
@@ -142,7 +189,6 @@ class TestRecharge(TestCase):
         self.assertIsNotNone(error.last_attempt_at)
 
     def test_non_numeric_msisdn(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = random.randint(0, 999999999999999)
@@ -167,7 +213,6 @@ class TestRecharge(TestCase):
         self.assertIsNotNone(error.last_attempt_at)
 
     def test_malformed_msisdn(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = random.randint(0, 999999999999999)
@@ -192,7 +237,6 @@ class TestRecharge(TestCase):
         self.assertIsNotNone(error.last_attempt_at)
 
     def test_bad_product_code(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = random.randint(0, 999999999999999)
@@ -218,7 +262,6 @@ class TestRecharge(TestCase):
 
 
     def test_bad_network_code(self):
-        code = settings.HOTSOCKET_CODES
         hotsocket_login()
         store_token = StoreToken.objects.get(id=1)
         reference = random.randint(0, 999999999999999)
@@ -246,9 +289,23 @@ class TestRecharge(TestCase):
 
 
 class TestLogin(TestCase):
+    fixtures = ["test_auth_users.json", "test_users.json", "test_recharge.json"]
+
     @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS = True,
                        CELERY_ALWAYS_EAGER = True,
                        BROKER_BACKEND = 'memory',)
+
+    def setUp(self):
+        patcher = patch('requests.post', Mock(side_effect=my_side_effect))
+        self.MockClass = patcher.start()
+        self.addCleanup(patcher.stop)
+
+    def test_requests_post_is_patched(self):
+        self.assertEqual(requests.post, self.MockClass)
+
+    def test_data_loaded(self):
+        query = Recharge.objects.all()
+        self.assertEqual(len(query), 2)
 
 
     def test_query_function(self):
