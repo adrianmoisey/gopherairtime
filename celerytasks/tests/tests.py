@@ -73,10 +73,8 @@ def my_side_effect(*args, **kwargs):
             return m
 
 
-fixtures_global = ["test_auth_users.json", "test_projects.json", "test_recharge.json"]
-
 class TestRecharge(TestCase):
-    fixtures = fixtures_global
+    fixtures = ["test_auth_users.json", "test_projects.json", "test_recharge.json"]
 
     @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS = True,
                        CELERY_ALWAYS_EAGER = True,
