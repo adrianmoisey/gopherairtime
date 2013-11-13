@@ -315,16 +315,16 @@ class TestLogin(TestCase):
         [self.assertIsNotNone(obj.expire_at) for obj in query]
 
 
-class TestBalanceQuery(TestCase):
-    @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS = True,
-                       CELERY_ALWAYS_EAGER = True,
-                       BROKER_BACKEND = 'memory',)
+# class TestBalanceQuery(TestCase):
+#     @override_settings(CELERY_EAGER_PROPAGATES_EXCEPTIONS = True,
+#                        CELERY_ALWAYS_EAGER = True,
+#                        BROKER_BACKEND = 'memory',)
 
-    def test_balance_query(self):
-        balance_checker.delay()
-        account = GopherAirtimeAccount.objects.all()
-        self.assertEqual(type(account[0].running_balance), type(1))
-        self.assertIsNotNone(account[0].created_at)
+#     def test_balance_query(self):
+#         balance_checker.delay()
+#         account = GopherAirtimeAccount.objects.all()
+#         self.assertEqual(type(account[0].running_balance), type(1))
+#         self.assertIsNotNone(account[0].created_at)
 
     # def test_kato_im(self):
     #     send_kato_im_threshold_warning.delay(110)
