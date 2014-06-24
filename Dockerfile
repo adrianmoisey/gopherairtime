@@ -1,7 +1,7 @@
 from ubuntu:precise
 
 run apt-get update
-run apt-get install -y python 
+run apt-get install -y python python-dev python-setuptools
 run apt-get install -y nginx supervisor
 run easy_install pip
 
