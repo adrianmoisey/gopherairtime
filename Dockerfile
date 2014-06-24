@@ -25,7 +25,7 @@ run /srv/wcl/prod/gopherairtime/ve/bin/pip install -r /srv/wcl/prod/gopherairtim
 #run rm /etc/nginx/sites-enabled/default
 #run ln -s /srv/wcl/prod/gopherairtime/etc/nginx.conf /etc/nginx/sites-enabled/
 run ln -s /srv/wcl/prod/gopherairtime/etc/supervisord.conf /etc/supervisord.conf
-run ln -s /srv/wcl/prod/gopherairtime/etc/conf.d/django.conf /etc/conf.d/django.conf
+run ln -s /srv/wcl/prod/gopherairtime/etc/conf.d/django.conf /etc/supervisord/conf.d/django.conf
 
 expose 8000
 cmd ["supervisord", "-n"]
