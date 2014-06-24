@@ -18,7 +18,7 @@ run apt-get install -y sqlite3
 run mkdir -p /srv/wcl/prod/gopherairtime
 add . /srv/wcl/prod/gopherairtime
 RUN virtualenv --no-site-packages /srv/wcl/prod/gopherairtime/ve
-run /srv/wcl/prod/gopherairtime/ve/bin/pip install -r /srv/wcl/prod/gopherairtime/requirements.txt
+run /srv/wcl/prod/gopherairtime/ve/bin/pip install -r /srv/wcl/prod/gopherairtime/requirements.pip
 
 # setup all the configfiles
 #run echo "daemon off;" >> /etc/nginx/nginx.conf
