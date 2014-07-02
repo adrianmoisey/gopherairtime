@@ -16,7 +16,7 @@ RUN apt-get install -y sqlite3
 
 # install our code
 RUN mkdir -p /srv/wcl/prod/gopherairtime
-ADD. /srv/wcl/prod/gopherairtime
+ADD . /srv/wcl/prod/gopherairtime
 RUN virtualenv --no-site-packages /srv/wcl/prod/gopherairtime/ve
 RUN /srv/wcl/prod/gopherairtime/ve/bin/pip install -r /srv/wcl/prod/gopherairtime/requirements.pip
 RUN /srv/wcl/prod/gopherairtime/ve/bin/python /srv/wcl/prod/gopherairtime/manage.py syncdb --noinput
