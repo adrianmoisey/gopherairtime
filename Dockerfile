@@ -28,7 +28,6 @@ RUN echo "daemon off;" >> /etc/nginx/nginx.conf
 RUN rm /etc/nginx/sites-enabled/default
 RUN ln -s /srv/wcl/prod/gopherairtime/gopherairtime.com.conf /etc/nginx/sites-enabled/
 RUN ln -s /srv/wcl/prod/gopherairtime/etc/supervisord.conf /etc/supervisord.conf
-RUN ln -s /srv/wcl/prod/gopherairtime/etc/conf.d/django.conf /etc/supervisor/conf.d/django.conf
 
 EXPOSE 80
 CMD ["supervisord", "-n"]
