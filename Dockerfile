@@ -3,6 +3,7 @@ from ubuntu:precise
 RUN apt-get update
 RUN apt-get install -y python python-dev python-setuptools
 RUN apt-get install -y nginx supervisor
+RUN apt-get install -y libpq-dev
 RUN easy_install pip
 
 RUN pip install uwsgi
