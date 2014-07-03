@@ -263,10 +263,3 @@ KATO_KEY = ""
 # ======================================================
 SMS_CONFIG = {"sender_type": "logging"}
 VUMIGO_API_URL = ""
-
-from api_settings import *
-
-try:
-    from production_settings import *
-except ImportError:
-    pass
